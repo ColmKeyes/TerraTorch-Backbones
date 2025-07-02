@@ -1,0 +1,4 @@
+backbone: internvl2_4b
+pretrained: true
+freeze_backbone: false
+output_channels: 1024  # InternVL2.5-4B vision model output dimension

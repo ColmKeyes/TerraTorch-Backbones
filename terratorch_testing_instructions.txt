@@ -1,0 +1,324 @@
+# TerraTorch-EarthMind Integration Testing Instructions
+
+This file contains code snippets and commands to test the integration of EarthMind with TerraTorch, along with explanations and expected outputs.
+
+## 1. Configuration File Creation
+
+First, we need to create a configuration file for the EarthMind backbone.
+
+### Command to Run:
+```bash
+mkdir -p earthmind/configs/backbones
+cat > earthmind/configs/backbones/earthmind_v1.yaml << 'EOF'
+backbone: earthmind_v1
+pretrained: true
+freeze_backbone: false
+output_channels: 768  # EarthMind vision model output dimension
+EOF
+
+mkdir -p earthmind/configs/experiments
+cat > earthmind/configs/experiments/earthmind_test.yaml << 'EOF'
+model:
+  backbone:
+    type: earthmind_v1
+    pretrained: true
+  decoder:
+    type: unet_decoder
+    in_channels: 768  # EarthMind output channels
+    num_classes: 2    # For binary classification testing
+
+training:
+  batch_size: 2
+  learning_rate: 1e-4
+  max_epochs: 5
+EOF
+```
+
+### Reason for Running:
+This creates the necessary configuration files for TerraTorch to use the EarthMind backbone. The first file defines the backbone parameters, and the second file sets up a complete model configuration for testing.
+
+### Expected Output:
+The commands should create two YAML files in the specified directories without any error messages.
+
+## 2. Test Script Creation
+
+Next, we need to create a script to test the EarthMind backbone integration with TerraTorch.
+
+### Command to Run:
+```bash
+mkdir -p earthmind/scripts
+cat > earthmind/scripts/test_earthmind.py << 'EOF'
+#!/usr/bin/env python3
+"""
+Test script for EarthMind backbone integration with TerraTorch
+"""
+import os
+import sys
+import torch
+import yaml
+import time
+import logging
+
+# Add the project root to the Python path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+# Import the backbone registry
+try:
+    from terratorch.registry import BACKBONE_REGISTRY
+    print("Successfully imported TerraTorch backbone registry")
+except ImportError as e:
+    print(f"Failed to import TerraTorch: {e}")
+    print("Make sure TerraTorch is installed and in your Python path")
+    sys.exit(1)
+
+# Import the backbone module to ensure it's registered
+try:
+    from src.earthmind_backbone import build_earthmind_backbone
+    print("Successfully imported EarthMind backbone")
+except ImportError as e:
+    print(f"Failed to import EarthMind backbone: {e}")
+    print("Make sure the src/earthmind_backbone.py file exists")
+    sys.exit(1)
+
+def test_backbone_registration():
+    """Test if the EarthMind backbone is properly registered"""
+    print("\n=== Testing Backbone Registration ===")
+    
+    try:
+        # Check if the backbone is in the registry
+        if "earthmind_v1" in BACKBONE_REGISTRY:
+            print("✓ EarthMind backbone is registered in TerraTorch")
+        else:
+            print("✗ EarthMind backbone is NOT registered in TerraTorch")
+            return False
+        
+        # Try to build the backbone
+        backbone = BACKBONE_REGISTRY.get("earthmind_v1")()
+        print(f"✓ Successfully built backbone: {type(backbone).__name__}")
+        return True
+    except Exception as e:
+        print(f"✗ Failed to build backbone: {e}")
+        return False
+
+def test_backbone_forward_pass():
+    """Test a forward pass through the backbone"""
+    print("\n=== Testing Backbone Forward Pass ===")
+    
+    try:
+        # Build the backbone
+        backbone = BACKBONE_REGISTRY.get("earthmind_v1")()
+        backbone.eval()
+        
+        # Create a dummy input tensor (3-channel RGB image)
+        dummy_input = torch.randn(1, 3, 224, 224)
+        print(f"Input shape: {dummy_input.shape}")
+        
+        # Run a forward pass
+        with torch.no_grad():
+            output = backbone(dummy_input)
+        
+        print(f"Output shape: {output.shape}")
+        print(f"Output dtype: {output.dtype}")
+        print(f"Output min/max: {output.min().item():.4f}/{output.max().item():.4f}")
+        
+        return True
+    except Exception as e:
+        print(f"✗ Forward pass failed: {e}")
+        return False
+
+def benchmark_performance():
+    """Benchmark the backbone's performance"""
+    print("\n=== Benchmarking Performance ===")
+    
+    try:
+        # Build the backbone
+        backbone = BACKBONE_REGISTRY.get("earthmind_v1")()
+        backbone.eval()
+        
+        # Create a dummy input tensor
+        dummy_input = torch.randn(1, 3, 224, 224)
+        
+        # Warmup
+        print("Warming up...")
+        with torch.no_grad():
+            for _ in range(3):
+                _ = backbone(dummy_input)
+        
+        # Benchmark
+        print("Running benchmark...")
+        num_runs = 5
+        start_time = time.time()
+        with torch.no_grad():
+            for _ in range(num_runs):
+                _ = backbone(dummy_input)
+        end_time = time.time()
+        
+        avg_time = (end_time - start_time) / num_runs
+        print(f"Average inference time: {avg_time:.4f} seconds")
+        print(f"Throughput: {1/avg_time:.2f} images/second")
+        
+        # Memory usage
+        if torch.cuda.is_available():
+            memory_allocated = torch.cuda.memory_allocated() / (1024 ** 2)
+            memory_reserved = torch.cuda.memory_reserved() / (1024 ** 2)
+            print(f"GPU memory allocated: {memory_allocated:.2f} MB")
+            print(f"GPU memory reserved: {memory_reserved:.2f} MB")
+        
+        return True
+    except Exception as e:
+        print(f"✗ Benchmarking failed: {e}")
+        return False
+
+def main():
+    """Main test function"""
+    print("=== EarthMind-TerraTorch Integration Test ===")
+    print(f"PyTorch version: {torch.__version__}")
+    print(f"CUDA available: {torch.cuda.is_available()}")
+    if torch.cuda.is_available():
+        print(f"CUDA device: {torch.cuda.get_device_name(0)}")
+    
+    # Run tests
+    registration_success = test_backbone_registration()
+    
+    if registration_success:
+        forward_success = test_backbone_forward_pass()
+        if forward_success:
+            benchmark_performance()
+    
+    print("\n=== Test Summary ===")
+    print(f"Backbone Registration: {'✓' if registration_success else '✗'}")
+    if registration_success:
+        print(f"Forward Pass: {'✓' if forward_success else '✗'}")
+        if forward_success:
+            print("Performance Benchmark: ✓")
+    
+    if registration_success and forward_success:
+        print("\n✅ All tests passed! EarthMind is successfully integrated with TerraTorch.")
+    else:
+        print("\n❌ Some tests failed. Please check the error messages above.")
+
+if __name__ == "__main__":
+    main()
+EOF
+
+chmod +x earthmind/scripts/test_earthmind.py
+```
+
+### Reason for Running:
+This creates a comprehensive test script that:
+1. Verifies the EarthMind backbone is properly registered with TerraTorch
+2. Tests a forward pass through the backbone with a dummy input
+3. Benchmarks the performance of the backbone
+
+### Expected Output:
+The command should create an executable Python script in the scripts directory without any error messages.
+
+## 3. Running the Test Script
+
+Now we can run the test script to verify the integration.
+
+### Command to Run:
+```bash
+cd earthmind
+source terratorch-env/bin/activate
+python scripts/test_earthmind.py
+```
+
+### Reason for Running:
+This activates the TerraTorch virtual environment and runs the test script to verify that:
+1. The EarthMind backbone is properly registered with TerraTorch
+2. We can successfully perform a forward pass through the backbone
+3. We can measure the performance characteristics of the backbone
+
+### Expected Output:
+If successful, you should see output similar to:
+
+```
+=== EarthMind-TerraTorch Integration Test ===
+PyTorch version: 2.0.1
+CUDA available: True
+CUDA device: NVIDIA RTX 4090
+Successfully imported TerraTorch backbone registry
+Successfully imported EarthMind backbone
+
+=== Testing Backbone Registration ===
+✓ EarthMind backbone is registered in TerraTorch
+✓ Successfully built backbone: VisionModel
+
+=== Testing Backbone Forward Pass ===
+Input shape: torch.Size([1, 3, 224, 224])
+Output shape: torch.Size([1, 768])
+Output dtype: torch.float32
+Output min/max: -2.3456/2.1234
+
+=== Benchmarking Performance ===
+Warming up...
+Running benchmark...
+Average inference time: 0.0123 seconds
+Throughput: 81.30 images/second
+GPU memory allocated: 1234.56 MB
+GPU memory reserved: 2345.67 MB
+
+=== Test Summary ===
+Backbone Registration: ✓
+Forward Pass: ✓
+Performance Benchmark: ✓
+
+✅ All tests passed! EarthMind is successfully integrated with TerraTorch.
+```
+
+Note: The actual numbers will vary based on your hardware and the specific model implementation.
+
+## 4. Creating Additional Backbone Implementations (Optional)
+
+If you want to test other backbone options, you can create additional backbone implementations.
+
+### Command to Run:
+```bash
+cat > earthmind/src/additional_backbones.py << 'EOF'
+"""
+Additional backbone implementations for TerraTorch
+"""
+from terratorch.registry import BACKBONE_REGISTRY
+from transformers import AutoModel, AutoBackbone
+import torch.nn as nn
+
+@BACKBONE_REGISTRY.register("internvl2_4b")
+def build_internvl2_4b_backbone(pretrained=True, **kwargs):
+    """Register InternVL2.5-4B with TerraTorch"""
+    try:
+        model = AutoModel.from_pretrained("OpenGVLab/InternVL2.5-4B")
+        return model.vision_model
+    except Exception as e:
+        print(f"Failed to load InternVL2.5-4B: {e}")
+        raise
+
+@BACKBONE_REGISTRY.register("granite_4_tiny")
+def build_granite_backbone(pretrained=True, **kwargs):
+    """Register Granite 4.0 Tiny with TerraTorch"""
+    try:
+        backbone = AutoBackbone.from_pretrained("ibm-granite/granite-4.0-tiny")
+        return backbone
+    except Exception as e:
+        print(f"Failed to load Granite 4.0 Tiny: {e}")
+        raise
+EOF
+```
+
+### Reason for Running:
+This creates additional backbone implementations that can be used with TerraTorch, allowing you to compare different models.
+
+### Expected Output:
+The command should create a Python file with additional backbone implementations without any error messages.
+
+## 5. Next Steps
+
+After successfully testing the integration, you can:
+
+1. Create more sophisticated configuration files for specific tasks
+2. Implement task-specific heads and necks
+3. Test with real geospatial data
+4. Benchmark different backbone options
+5. Implement memory optimization techniques for larger models
+
+These steps will help you build a complete TerraTorch-based pipeline for geospatial tasks using EarthMind and other backbone options.

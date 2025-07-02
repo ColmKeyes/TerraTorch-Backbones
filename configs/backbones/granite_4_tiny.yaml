@@ -1,0 +1,4 @@
+backbone: granite_4_tiny
+pretrained: true
+freeze_backbone: false
+output_channels: 1024  # Granite 4.0 Tiny output dimension

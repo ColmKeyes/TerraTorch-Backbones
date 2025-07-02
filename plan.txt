@@ -1,0 +1,576 @@
+# EarthMind to TerraTorch Integration Plan
+
+Based on the chat content and exploration of your earthmind directory, I can now present a comprehensive plan for adapting EarthMind models into TerraTorch and exploring backbone options suitable for your RTX 4090.
+
+## Current Situation Analysis
+
+__EarthMind Architecture:__
+
+- Fixed multimodal pipeline: InternVL-2 visual encoder + GPT4RoI region encoder + Qwen-2.5-3B LLM
+- No exposed API for backbone swapping
+- Currently a testing framework rather than full implementation
+
+__TerraTorch Advantages:__
+
+- Modular backbone registry system
+- YAML-based configuration for backbone swapping
+- Built-in "necks" for handling dimensional mismatches
+- Native support for geospatial foundation models
+
+## Recommended Backbone Options for RTX 4090 (24GB VRAM)
+
+### Optimal for Full Fine-tuning (2-8B parameters):
+
+1. __InternVL2.5-4B__ - Direct successor to EarthMind's current backbone
+2. __InternVL2.5-8B__ - Larger capacity, fits with LoRA
+3. __Qwen2-VL-7B__ - Instruction-tuned, excellent for vision-language tasks
+4. __Gemma 4B__ - Google's efficient multimodal model
+
+### TerraTorch Native Geospatial Backbones:
+
+1. __Prithvi__ - Temporal ViT pretrained on Landsat + Sentinel-2
+2. __TerraMind__ - IBM ESA's geospatial encoder
+3. __Clay__ - Vision Transformer MAE for multi-temporal geospatial data
+4. __SatMAE__ - Masked Autoencoder for satellite imagery
+5. __Granite 4.0 Tiny__ - IBM's latest efficient backbone
+
+### Larger Models (26-40B) with Memory Optimization:
+
+1. __InternVL2-26B__ - Requires LoRA/quantization
+2. __InternVL2-40B__ - Maximum size, needs aggressive optimization
+3. __Gemma 27B__ - With QLoRA and ZeRO
+
+## Integration Strategy
+
+### Option 1: Port EarthMind to TerraTorch (Recommended)
+
+__Step 1: TerraTorch Setup__
+
+```bash
+git clone https://github.com/IBM/terratorch.git
+cd terratorch
+pip install -e .
+```
+
+__Step 2: Register EarthMind Backbone__ Create custom backbone wrapper:
+
+```python
+from terratorch.registry import TERRATORCH_BACKBONE_FACTORY
+
+@TERRATORCH_BACKBONE_FACTORY.register("earthmind_v1")
+def build_earthmind_backbone(pretrained: bool = True, **kwargs):
+    from transformers import AutoModel
+    model = AutoModel.from_pretrained("shuyansy/EarthMind-1.0-base")
+    return model.vision_model  # Extract vision encoder only
+```
+
+__Step 3: YAML Configuration__
+
+```yaml
+model_factory: EncoderDecoderFactory
+model_args:
+  backbone: earthmind_v1
+  pretrained: true
+  neck: identity_neck
+  decoder: unet_decoder
+task: SemanticSegmentationTask
+```
+
+### Option 2: Direct EarthMind Modification
+
+__Step 1: Replace Visual Encoder__
+
+- Swap InternVL-2 with chosen backbone (e.g., Granite 4.0 Tiny)
+- Align embedding dimensions and tokenization
+- Retrain fusion layers
+
+__Step 2: Maintain Multimodal Pipeline__
+
+- Keep GPT4RoI region encoder
+- Preserve Qwen-2.5-3B LLM
+- Fine-tune cross-modal attention
+
+## Implementation Phases
+
+### Phase 1: Foundation Setup
+
+1. Set up TerraTorch environment
+2. Implement EarthMind backbone wrapper
+3. Create basic YAML configurations
+4. Test backbone registration and loading
+
+### Phase 2: Backbone Experimentation
+
+1. Test multiple backbone options:
+
+   - Start with InternVL2.5-4B (closest to original)
+   - Experiment with Prithvi for geospatial specialization
+   - Try Granite 4.0 Tiny for efficiency
+
+2. Benchmark memory usage and inference speed
+
+3. Compare feature extraction quality
+
+### Phase 3: Task-Specific Adaptation
+
+1. Implement task heads for your specific use cases:
+
+   - Forest disturbance detection (Borneo dataset)
+   - InSAR coherence analysis
+   - Multi-temporal change detection
+
+2. Create custom necks for dimensional alignment
+
+3. Fine-tune on your datasets
+
+### Phase 4: Optimization and Scaling
+
+1. Implement memory optimization techniques:
+
+   - LoRA for larger models
+   - Gradient checkpointing
+   - Mixed precision training
+
+2. Multi-GPU scaling with DeepSpeed
+
+3. Quantization for deployment
+
+## Memory Optimization Strategy for RTX 4090
+
+__For 4-8B Models:__
+
+- Full fine-tuning possible
+- Use FP16 mixed precision
+- Batch size optimization
+
+__For 26-40B Models:__
+
+- QLoRA (4-bit quantization)
+- LoRA adapters (rank 16-64)
+- DeepSpeed ZeRO-3 for parameter offloading
+- Gradient accumulation
+
+## Expected Outcomes
+
+1. __Modular Framework__: Easy backbone swapping via YAML configs
+2. __Memory Efficiency__: Optimal utilization of 24GB VRAM
+3. __Geospatial Specialization__: Access to domain-specific pretrained models
+4. __Scalability__: Support for models up to 40B parameters
+5. __Benchmarking__: Systematic comparison across backbone options
+
+## Next Steps
+
+Would you like me to:
+
+1. Start with implementing the TerraTorch integration?
+2. Focus on a specific backbone option first?
+3. Set up the benchmarking framework for comparing different models?
+4. Begin with memory optimization techniques for larger models?
+
+The TerraTorch approach offers the most flexibility and aligns well with your goal of testing multiple backbone options systematically.
+
+i want you to write this whole plan into a format that will be sufficient for another model to read and continue on from that location accurately. then we will switch into act mode, but not until you're finished the plan.
+
+**Checkpoint
+
+Compare
+
+Restore
+
+API Request$0.0773
+
+# EarthMind to TerraTorch Integration: Comprehensive Implementation Plan
+
+## Project Context and Objectives
+
+__Working Directory:__ `/home/colm-the-conjurer/VSCode/workspace/earthmind/`
+
+__Primary Goal:__ Adapt EarthMind multimodal geospatial models into TerraTorch framework to enable systematic backbone experimentation and comparison.
+
+__Hardware Constraints:__ RTX 4090 (24GB VRAM) - supports models up to ~40B parameters with optimization techniques.
+
+__Current State:__ Basic earthmind directory structure exists with README.md, empty configs/, and src/ subdirectories (datasets/, evaluation/, model/). No implementation files present yet.
+
+## Technical Background
+
+### EarthMind Architecture Analysis
+
+- __Fixed Pipeline:__ InternVL-2 visual encoder + GPT4RoI region encoder + Qwen-2.5-3B LLM
+- __Limitation:__ No exposed API for backbone swapping
+- __Multimodal:__ Processes both SAR (Sentinel-1) and optical (Sentinel-2) imagery
+- __Current Implementation:__ Testing framework rather than production model
+
+### TerraTorch Framework Advantages
+
+- __Modular Registry:__ `@TERRATORCH_BACKBONE_FACTORY.register()` decorator system
+- __YAML Configuration:__ Declarative model specification
+- __Neck Modules:__ Automatic dimensional alignment between backbones and heads
+- __Native Geospatial Support:__ Built-in support for Prithvi, Clay, SatMAE, etc.
+
+## Backbone Selection Matrix
+
+### Tier 1: Direct Fine-tuning (2-8B parameters)
+
+| Model | Parameters | Memory (FP16) | Specialization | Priority | |-------|------------|---------------|----------------|----------| | InternVL2.5-4B | 4B | ~8GB | Multimodal VL | High | | InternVL2.5-8B | 8B | ~16GB | Multimodal VL | High | | Qwen2-VL-7B | 7B | ~14GB | Instruction-tuned VL | Medium | | Gemma 4B | 4B | ~8GB | Google multimodal | Medium |
+
+### Tier 2: TerraTorch Native Geospatial
+
+| Model | Parameters | Specialization | Data Pretraining | |-------|------------|----------------|------------------| | Prithvi | ~100M | Temporal ViT | Landsat + Sentinel-2 | | TerraMind | Variable | Region embeddings | Multi-modal Earth data | | Clay | Variable | MAE ViT | Multi-temporal geospatial | | Granite 4.0 Tiny | ~3B | Efficient backbone | General + geospatial |
+
+### Tier 3: Large Models with Optimization (26-40B)
+
+| Model | Parameters | Optimization Required | Expected Performance | |-------|------------|----------------------|---------------------| | InternVL2-26B | 26B | LoRA + 4-bit quant | High | | InternVL2-40B | 40B | QLoRA + ZeRO-3 | Highest | | Gemma 27B | 27B | QLoRA + gradient accumulation | High |
+
+## Implementation Architecture
+
+### Phase 1: Foundation Setup
+
+__1.1 TerraTorch Installation__
+
+```bash
+# Working directory: /home/colm-the-conjurer/VSCode/workspace/earthmind/
+git clone https://github.com/IBM/terratorch.git
+cd terratorch
+pip install -e .
+cd ../
+```
+
+__1.2 Project Structure Creation__
+
+```javascript
+earthmind/
+├── terratorch/                 # Cloned TerraTorch repo
+├── configs/
+│   ├── backbones/             # Backbone-specific configs
+│   ├── tasks/                 # Task-specific configs
+│   └── experiments/           # Full experiment configs
+├── src/
+│   ├── backbones/             # Custom backbone implementations
+│   ├── necks/                 # Custom neck modules
+│   ├── tasks/                 # Custom task implementations
+│   └── utils/                 # Utility functions
+├── scripts/
+│   ├── register_backbones.py  # Backbone registration
+│   ├── run_experiments.py     # Experiment runner
+│   └── benchmark.py           # Performance benchmarking
+└── results/                   # Experiment outputs
+```
+
+__1.3 Dependencies Setup__
+
+```bash
+pip install transformers torch torchvision pytorch-lightning
+pip install timm einops accelerate bitsandbytes
+pip install deepspeed peft  # For large model optimization
+```
+
+### Phase 2: Backbone Registration System
+
+__2.1 EarthMind Backbone Wrapper__ (`src/backbones/earthmind_backbone.py`)
+
+```python
+from terratorch.registry import TERRATORCH_BACKBONE_FACTORY
+from transformers import AutoModel
+import torch.nn as nn
+
+@TERRATORCH_BACKBONE_FACTORY.register("earthmind_v1")
+def build_earthmind_backbone(pretrained: bool = True, **kwargs):
+    """
+    EarthMind vision encoder as TerraTorch backbone
+    """
+    model = AutoModel.from_pretrained("shuyansy/EarthMind-1.0-base")
+    # Extract vision encoder component
+    vision_encoder = model.vision_model
+    return vision_encoder
+
+@TERRATORCH_BACKBONE_FACTORY.register("earthmind_internvl2_4b")
+def build_internvl2_4b_backbone(pretrained: bool = True, **kwargs):
+    """
+    InternVL2.5-4B as backbone for comparison
+    """
+    model = AutoModel.from_pretrained("OpenGVLab/InternVL2.5-4B")
+    return model.vision_model
+```
+
+__2.2 Granite Backbone Integration__ (`src/backbones/granite_backbone.py`)
+
+```python
+@TERRATORCH_BACKBONE_FACTORY.register("granite_4_tiny")
+def build_granite_backbone(pretrained: bool = True, **kwargs):
+    """
+    Granite 4.0 Tiny as efficient backbone
+    """
+    from transformers import AutoBackbone
+    backbone = AutoBackbone.from_pretrained("ibm-granite/granite-4.0-tiny")
+    return backbone
+```
+
+__2.3 Registration Script__ (`scripts/register_backbones.py`)
+
+```python
+#!/usr/bin/env python3
+"""
+Register all custom backbones with TerraTorch
+"""
+import sys
+sys.path.append('src')
+
+from backbones.earthmind_backbone import *
+from backbones.granite_backbone import *
+# Import other custom backbones
+
+if __name__ == "__main__":
+    print("Custom backbones registered successfully")
+```
+
+### Phase 3: Configuration System
+
+__3.1 Base Backbone Configs__ (`configs/backbones/`)
+
+`earthmind_v1.yaml`:
+
+```yaml
+backbone: earthmind_v1
+pretrained: true
+freeze_backbone: false
+output_channels: 768  # Adjust based on actual model
+```
+
+`granite_4_tiny.yaml`:
+
+```yaml
+backbone: granite_4_tiny
+pretrained: true
+freeze_backbone: false
+output_channels: 1024  # Adjust based on actual model
+```
+
+__3.2 Task Configurations__ (`configs/tasks/`)
+
+`forest_disturbance.yaml`:
+
+```yaml
+task: SemanticSegmentationTask
+task_args:
+  loss: cross_entropy
+  num_classes: 2  # Disturbed/Undisturbed
+  optimizer: AdamW
+  optimizer_hparams:
+    lr: 1e-4
+    weight_decay: 0.01
+  scheduler: cosine_annealing
+```
+
+__3.3 Full Experiment Configs__ (`configs/experiments/`)
+
+`earthmind_forest_disturbance.yaml`:
+
+```yaml
+model_factory: EncoderDecoderFactory
+model_args:
+  backbone: earthmind_v1
+  pretrained: true
+  neck: identity_neck
+  decoder: unet_decoder
+  decoder_args:
+    num_classes: 2
+
+task: SemanticSegmentationTask
+task_args:
+  loss: cross_entropy
+  optimizer: AdamW
+  optimizer_hparams:
+    lr: 1e-4
+    weight_decay: 0.01
+
+trainer:
+  max_epochs: 100
+  precision: 16
+  gradient_clip_val: 1.0
+  accumulate_grad_batches: 4
+
+data:
+  batch_size: 8
+  num_workers: 4
+  dataset_path: "/path/to/borneo/dataset"
+```
+
+### Phase 4: Memory Optimization Framework
+
+__4.1 LoRA Configuration__ (`src/utils/lora_utils.py`)
+
+```python
+from peft import LoraConfig, get_peft_model
+
+def apply_lora_to_backbone(model, rank=16, alpha=32):
+    """
+    Apply LoRA to large backbones for memory efficiency
+    """
+    lora_config = LoraConfig(
+        r=rank,
+        lora_alpha=alpha,
+        target_modules=["q_proj", "v_proj", "k_proj", "o_proj"],
+        lora_dropout=0.1,
+    )
+    return get_peft_model(model, lora_config)
+```
+
+__4.2 Quantization Setup__ (`src/utils/quantization.py`)
+
+```python
+from transformers import BitsAndBytesConfig
+
+def get_4bit_config():
+    """
+    4-bit quantization config for large models
+    """
+    return BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_use_double_quant=True,
+    )
+```
+
+### Phase 5: Benchmarking and Evaluation
+
+__5.1 Benchmark Script__ (`scripts/benchmark.py`)
+
+```python
+#!/usr/bin/env python3
+"""
+Systematic benchmarking of different backbones
+"""
+import time
+import torch
+import psutil
+from terratorch import BACKBONE_REGISTRY
+
+def benchmark_backbone(backbone_name, input_shape=(3, 224, 224), batch_size=8):
+    """
+    Benchmark memory usage, inference speed, and feature quality
+    """
+    backbone = BACKBONE_REGISTRY.build(backbone_name, pretrained=True)
+    
+    # Memory benchmark
+    torch.cuda.empty_cache()
+    initial_memory = torch.cuda.memory_allocated()
+    
+    # Speed benchmark
+    dummy_input = torch.randn(batch_size, *input_shape).cuda()
+    
+    start_time = time.time()
+    with torch.no_grad():
+        features = backbone(dummy_input)
+    end_time = time.time()
+    
+    peak_memory = torch.cuda.max_memory_allocated()
+    
+    return {
+        'backbone': backbone_name,
+        'inference_time': end_time - start_time,
+        'memory_usage_mb': (peak_memory - initial_memory) / 1024**2,
+        'feature_shape': features.shape,
+        'throughput_fps': batch_size / (end_time - start_time)
+    }
+
+# Benchmark all registered backbones
+backbones_to_test = [
+    'earthmind_v1',
+    'granite_4_tiny',
+    'prithvi_eo_v2_300',
+    'internvl2_4b'
+]
+
+results = []
+for backbone in backbones_to_test:
+    try:
+        result = benchmark_backbone(backbone)
+        results.append(result)
+        print(f"✓ {backbone}: {result['throughput_fps']:.2f} FPS, {result['memory_usage_mb']:.1f} MB")
+    except Exception as e:
+        print(f"✗ {backbone}: {str(e)}")
+```
+
+__5.2 Experiment Runner__ (`scripts/run_experiments.py`)
+
+```python
+#!/usr/bin/env python3
+"""
+Run systematic experiments across backbone/task combinations
+"""
+import yaml
+import itertools
+from pathlib import Path
+
+def run_experiment_matrix():
+    """
+    Run all combinations of backbones and tasks
+    """
+    backbones = ['earthmind_v1', 'granite_4_tiny', 'prithvi_eo_v2_300']
+    tasks = ['forest_disturbance', 'change_detection', 'land_cover']
+    
+    for backbone, task in itertools.product(backbones, tasks):
+        config_path = f"configs/experiments/{backbone}_{task}.yaml"
+        
+        if Path(config_path).exists():
+            print(f"Running: {backbone} on {task}")
+            # Load config and run training
+            # Implementation depends on TerraTorch training interface
+```
+
+## Execution Sequence
+
+### Immediate Next Steps (Phase 1)
+
+1. __Clone TerraTorch:__ `git clone https://github.com/IBM/terratorch.git`
+2. __Create Directory Structure:__ Set up configs/, src/, scripts/, results/
+3. __Install Dependencies:__ PyTorch, transformers, TerraTorch, optimization libraries
+4. __Test Basic Setup:__ Verify TerraTorch installation and basic functionality
+
+### Short-term Goals (Phases 2-3)
+
+1. __Implement Backbone Wrappers:__ EarthMind, Granite, InternVL2 variants
+2. __Create Configuration Files:__ YAML configs for each backbone/task combination
+3. __Test Registration System:__ Verify all backbones load correctly
+4. __Basic Functionality Test:__ Simple forward pass with each backbone
+
+### Medium-term Goals (Phases 4-5)
+
+1. __Memory Optimization:__ Implement LoRA and quantization for large models
+2. __Benchmarking Suite:__ Systematic performance comparison
+3. __Dataset Integration:__ Connect to Borneo forest disturbance dataset
+4. __Initial Training Runs:__ Baseline results for each backbone
+
+## Success Metrics
+
+### Technical Metrics
+
+- __Memory Efficiency:__ All target models fit within 24GB VRAM
+- __Speed:__ Inference throughput >1 FPS for largest models
+- __Accuracy:__ Competitive performance on forest disturbance detection
+- __Modularity:__ Easy backbone swapping via YAML configuration
+
+### Deliverables
+
+1. __Functional TerraTorch Integration:__ Working backbone registration system
+2. __Comprehensive Benchmarks:__ Performance comparison across all backbones
+3. __Optimized Training Pipeline:__ Memory-efficient training for 40B models
+4. __Documentation:__ Clear instructions for adding new backbones
+
+## Risk Mitigation
+
+### Technical Risks
+
+- __Memory Constraints:__ Implement aggressive optimization (LoRA, quantization, gradient checkpointing)
+- __Compatibility Issues:__ Create robust neck modules for dimensional mismatches
+- __Performance Degradation:__ Systematic benchmarking to identify optimal configurations
+
+### Implementation Risks
+
+- __TerraTorch API Changes:__ Pin specific version, maintain compatibility layer
+- __Model Availability:__ Cache pretrained weights locally
+- __Configuration Complexity:__ Start with simple configs, add complexity incrementally
+
+This plan provides a complete roadmap for implementing EarthMind-TerraTorch integration with systematic backbone experimentation. The modular design ensures easy extension and modification as new requirements emerge.
+

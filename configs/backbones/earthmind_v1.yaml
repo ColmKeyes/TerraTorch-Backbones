@@ -1,0 +1,4 @@
+backbone: earthmind_v1
+pretrained: true
+freeze_backbone: false
+output_channels: 768  # EarthMind vision model output dimension
