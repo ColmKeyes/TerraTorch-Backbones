@@ -1,6 +1,6 @@
-**UNDER CONSTRUCTION**  
-This repository is currently under active development. Expect breaking changes and incomplete features.
-
+<div align="center" style="background-color: #ffeb3b; padding: 10px; border-radius: 5px; margin-bottom: 20px;">
+  <strong>🚧 Under Construction:</strong> This documentation page is being actively developed. Content may change frequently.
+</div>
 # EarthMind-TerraTorch Integration
 
 This project integrates the EarthMind multimodal geospatial model with the TerraTorch framework, enabling systematic backbone experimentation and comparison for geospatial tasks.
