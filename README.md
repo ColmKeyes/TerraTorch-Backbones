@@ -1,3 +1,6 @@
+**UNDER CONSTRUCTION**  
+This repository is currently under active development. Expect breaking changes and incomplete features.
+
 # EarthMind-TerraTorch Integration
 
 This project integrates the EarthMind multimodal geospatial model with the TerraTorch framework, enabling systematic backbone experimentation and comparison for geospatial tasks.

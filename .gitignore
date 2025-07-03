@@ -27,6 +27,9 @@ env/
 ENV/
 terratorch-env/
 
+# TerraTorch directory (installed separately)
+terratorch/
+
 # Distribution / packaging
 .Python
 env/
@@ -99,3 +102,7 @@ runs/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+# Text files (ignore all except requirements.txt)
+*.txt
+!requirements.txt
